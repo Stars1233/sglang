@@ -181,6 +181,7 @@ class ServerArgs:
     hicache_ratio: float = 2.0
     flashinfer_mla_disable_ragged: bool = False
     warmups: Optional[str] = None
+    moe_dense_tp_size: Optional[int] = None
     n_share_experts_fusion: int = 0
     disable_shared_experts_fusion: bool = False
     disable_chunked_prefix_cache: bool = False
@@ -195,6 +196,7 @@ class ServerArgs:
     disaggregation_mode: str = "null"
     disaggregation_bootstrap_port: int = 8998
     disaggregation_transfer_backend: str = "mooncake"
+    disaggregation_ib_device: Optional[str] = None
 
     def __post_init__(self):
         # Expert parallelism
@@ -251,6 +253,11 @@ class ServerArgs:
                 self.chunked_prefill_size = 8192
 
         assert self.chunked_prefill_size % self.page_size == 0
+
+        assert self.moe_dense_tp_size in {
+            1,
+            None,
+        }, f"moe_dense_tp_size only support 1 and None currently"
 
         if self.attention_backend == "flashmla":
             logger.warning(
@@ -1102,6 +1109,12 @@ class ServerArgs:
             help="Enabling DeepEP MoE implementation for EP MoE.",
         )
         parser.add_argument(
+            "--moe-dense-tp-size",
+            type=int,
+            default=ServerArgs.moe_dense_tp_size,
+            help="TP size for MoE dense MLP layers. This flag is useful when, with large TP size, there are errors caused by weights in MLP layers having dimension smaller than the min dimension GEMM supports.",
+        )
+        parser.add_argument(
             "--deepep-mode",
             type=str,
             choices=["normal", "low_latency", "auto"],
@@ -1180,6 +1193,12 @@ class ServerArgs:
             type=str,
             default=ServerArgs.disaggregation_transfer_backend,
             help="The backend for disaggregation transfer. Default is mooncake.",
+        )
+        parser.add_argument(
+            "--disaggregation-ib-device",
+            type=str,
+            default=ServerArgs.disaggregation_ib_device,
+            help="The ib device for disaggregation transfer. Default is None, it will be detected automatically if using the mooncake backend.",
         )
 
     @classmethod
